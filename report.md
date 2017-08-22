@@ -13,8 +13,8 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
+[image1]: ./output_images/calibration.png "Undistorted"
+[image2]: ./output_images/road_transformed.png "Road Transformed"
 [image3]: ./examples/binary_combo_example.jpg "Binary Example"
 [image4]: ./examples/warped_straight_lines.jpg "Warp Example"
 [image5]: ./examples/color_fit_lines.jpg "Fit Visual"
@@ -49,14 +49,20 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 #### 1. Provide an example of a distortion-corrected image.
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
+Once the calibration matrix and distortion coefficients are obtained, they can be saved to undistort road images. I do this in the code at line 327 in the process_image function as the first step in the pipeline. An example of applying the undistort function on test1.jpg from the test images folder in the supplied repository is shown below.
 ![alt text][image2]
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-The code I used for generating a binary image is located in lines 52-85. To create the thresholded binary image, I call the function get_binary_image (lines 59-60), which calls get_hls_image (lines 62-66). This latter function takes an image, undistorts it, and then calls the hls_select function (lines 52-57). hls_select converts the image to HLS colorspace and computes a binary image for any S channel values between the min and max, in this case 60 and 255.
+The code I used for generating a binary image is located in lines 52-86.
 
-Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+The basic idea is to first create a thresholded binary image using the S channel in HLS space, then pass that image through a Sobel filter computing gradients in the x direction. These steps are performed in the function get_binary_image (lines 59-61).
+
+The first step, is to call get_hls_image (line 60, which calls the function defined on lines 63-67). The function converts the image to HLS colorspace, then uses a threshold (60-255 in this case) to convert the image to a binary image based on the S channel.
+
+Once, the HLS-thresholded binary image is returned, it is passed to abs_sobel_thresh (lines 69-86), which computes gradients in the x-direction. Pixels within the threshold (20-100 in this case) are converted to 1's and other pixels are converted to 0's. This Sobel-thresholded image is returned to the pipeline.
+
+Here's an example of my output for this step.  
 
 ![alt text][image3]
 
@@ -66,10 +72,10 @@ The code for my perspective transform is on lines 45-50 and line 339. Lines 45-5
 
 | Source        | Destination   | 
 |:-------------:|:-------------:| 
-| 282, 44      | 320, 0        | 
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+| 261, 44       | 261, 44       | 
+| 1039, 44      | 1039, 44      |
+| 1039, 173     | 838, 173      |
+| 261, 173      | 470, 173      |
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 

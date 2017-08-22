@@ -43,8 +43,8 @@ def get_calibration():
 mtx, dist = get_calibration()
 
 # Set up perspective transform coordinates
-src = np.float32([[261, 44], [1039, 44], [838, 173], [470, 173]])
-dst = np.float32([[261, 44], [1039, 44], [1039, 173], [261, 173]])
+src = np.float32([[261, 676], [1039, 676], [838, 547], [470, 547]])
+dst = np.float32([[261, 676], [1039, 676], [1039, 547], [261, 547]])
 
 M = cv2.getPerspectiveTransform(src, dst)
 Minv = cv2.getPerspectiveTransform(dst, src)
@@ -56,22 +56,14 @@ def hls_select(img, thresh=(0, 255)):
     binary_output[(s_channel > thresh[0]) & (s_channel <= thresh[1])] = 1
     return binary_output
 
-def red_select(img, thresh=(0,255)):
-    r_channel = img[:,:,2]
-    binary_output = np.zeros_like(r_channel)
-    binary_output[(r_channel > thresh[0]) & (r_channel <= thresh[1])] = 1
-    return binary_output
-
-def get_binary_image(image, mtx, dist):
-    hls_img = get_hls_image(image, mtx, dist)
+def get_binary_image(image):
+    hls_img = get_hls_image(image)
     return abs_sobel_thresh(np.dstack((hls_img, hls_img, hls_img)))
-    #return abs_sobel_thresh(image) #np.bitwise_and(get_hls_image(image, mtx, dist), abs_sobel_thresh(image))
     
-def get_hls_image(image, mtx, dist):
+def get_hls_image(image):
     # Create thresholded binary image
-    image_undistorted = cv2.undistort(image, mtx, dist, None, mtx)
-    image_size = (image_undistorted.shape[1], image_undistorted.shape[0])
-    return hls_select(image_undistorted, (60, 255))
+    image_size = (image.shape[1], image.shape[0])
+    return hls_select(image, (60, 255))
 
 def abs_sobel_thresh(img, orient='x', thresh_min=20, thresh_max=100):
     # Convert to grayscale
@@ -235,17 +227,6 @@ def sanity_check(lines, fitl, fitr):
 def check_rat(rat, min_rat=0.0, max_rat=0.25):
     return rat > min_rat and rat < max_rat
 
-"""
-out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-plt.imshow(out_img)
-plt.plot(left_fitx, ploty, color='yellow')
-plt.plot(right_fitx, ploty, color='yellow')
-plt.xlim(0, 1280)
-plt.ylim(720, 0)
-plt.show()
-"""
-
 def measure_curvature(ploty, lines):
     # Calculate radius of curvature
     y_eval = np.max(ploty)
@@ -264,8 +245,8 @@ def measure_curvature_m(img, lines):
 
     y_eval = np.max(ploty)
 
-    leftx, lefty = lines[0].get_recent_xy_from(0)
-    rightx, righty = lines[1].get_recent_xy_from(0)
+    leftx, lefty = lines[0].allx, lines[0].ally
+    rightx, righty = lines[1].allx, lines[1].ally
     
     # Fit new polynomials to x,y in world space
     left_fit_cr = np.polyfit(lefty*ym_per_pix, leftx*xm_per_pix, 2)
@@ -317,7 +298,7 @@ def plot_to_road(img, lines):
 
     # Warp the blank back to original image space using inverse perspective matrix (Minv)
     newwarp_upside_down = cv2.warpPerspective(color_warp, Minv, (img.shape[1], img.shape[0]))
-    newwarp = cv2.flip(newwarp_upside_down, 0)
+    newwarp = newwarp_upside_down
     
     # Combine the result with the original image
     result = cv2.addWeighted(img, 1, newwarp, 0.3, 0)
@@ -343,20 +324,14 @@ def lines_string():
 
 def process_image(image):
     global lines
-    bin_img = get_binary_image(cv2.flip(image, 0), mtx, dist)
+    image_undistorted = cv2.undistort(image, mtx, dist, None, mtx)
+    bin_img = get_binary_image(image_undistorted)
     pt_bin_img = cv2.warpPerspective(bin_img, M, (bin_img.shape[1], bin_img.shape[0]), flags = cv2.INTER_LINEAR)
     lines = get_lane_lines(pt_bin_img, lines)
-    result = plot_to_road(image, lines)
-    #lines = measure_curvature_m(result, lines)
-    #final_image = add_text(result, lines)
-    #return final_image
-    lines_img_flip = np.dstack((pt_bin_img, pt_bin_img, pt_bin_img))*255
-    lines_img = cv2.flip(lines_img_flip, 0)
-    cv2.putText(lines_img, "Pixels: {}".format(len(lines[0].ally)), (0,60), cv2.FONT_HERSHEY_PLAIN, 3, (255,0,0))
-    cv2.putText(lines_img, "Pixels: {}".format(len(lines[1].ally)), (0,110), cv2.FONT_HERSHEY_PLAIN, 3, (255,0,0))
-    cv2.putText(lines_img, "Fit: {:1.4f}, {:2.4f}, {:4.0f}".format(lines[1].current_fit[0], lines[1].current_fit[1], lines[1].current_fit[2]), (0,160), cv2.FONT_HERSHEY_PLAIN, 3, (255,0,0))
-    cv2.putText(lines_img, lines_string(), (0,210), cv2.FONT_HERSHEY_PLAIN, 3, (255,0,0))
-    return np.append(lines_img, result, axis=1)
+    result = plot_to_road(image_undistorted, lines)
+    lines = measure_curvature_m(result, lines)
+    final_image = add_text(result, lines)
+    return final_image
 
 clip_output = 'output_images/project_output.mp4'
 
