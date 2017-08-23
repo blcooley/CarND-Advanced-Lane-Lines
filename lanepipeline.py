@@ -43,8 +43,8 @@ def get_calibration():
 mtx, dist = get_calibration()
 
 # Set up perspective transform coordinates
-src = np.float32([[261, 44], [1039, 44], [838, 173], [470, 173]])
-dst = np.float32([[261, 44], [1039, 44], [1039, 173], [261, 173]])
+src = np.float32([[261, 676], [1039, 676], [838, 547], [455, 547]])
+dst = np.float32([[261, 676], [1039, 676], [1039, 547], [261, 547]])
 
 M = cv2.getPerspectiveTransform(src, dst)
 Minv = cv2.getPerspectiveTransform(dst, src)
@@ -56,15 +56,14 @@ def hls_select(img, thresh=(0, 255)):
     binary_output[(s_channel > thresh[0]) & (s_channel <= thresh[1])] = 1
     return binary_output
 
-def get_binary_image(image, mtx, dist):
-    hls_img = get_hls_image(image, mtx, dist)
+def get_binary_image(image):
+    hls_img = get_hls_image(image)
     return abs_sobel_thresh(np.dstack((hls_img, hls_img, hls_img)))
     
-def get_hls_image(image, mtx, dist):
+def get_hls_image(image):
     # Create thresholded binary image
-    image_undistorted = cv2.undistort(image, mtx, dist, None, mtx)
-    image_size = (image_undistorted.shape[1], image_undistorted.shape[0])
-    return hls_select(image_undistorted, (60, 255))
+    image_size = (image.shape[1], image.shape[0])
+    return hls_select(image, (60, 255))
 
 def abs_sobel_thresh(img, orient='x', thresh_min=20, thresh_max=100):
     # Convert to grayscale
@@ -134,9 +133,6 @@ def get_lane_lines(img, lines):
             win_xleft_high = leftx_current + margin
             win_xright_low = rightx_current - margin
             win_xright_high = rightx_current + margin
-            # Draw the windows on the visualization image
-            cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high),(0,255,0), 2) 
-            cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high),(0,255,0), 2) 
             # Identify the nonzero pixels in x and y within the window
             good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
             good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xright_low) & (nonzerox < win_xright_high)).nonzero()[0]
@@ -228,15 +224,6 @@ def sanity_check(lines, fitl, fitr):
 def check_rat(rat, min_rat=0.0, max_rat=0.25):
     return rat > min_rat and rat < max_rat
 
-def measure_curvature(ploty, lines):
-    # Calculate radius of curvature
-    y_eval = np.max(ploty)
-    left_fit = lines[0].best_fit
-    right_fit = lines[1].best_fit
-    left_curverad = ((1 + (2*left_fit[0]*y_eval + left_fit[1])**2)**1.5) / np.absolute(2*left_fit[0])
-    right_curverad = ((1 + (2*right_fit[0]*y_eval + right_fit[1])**2)**1.5) / np.absolute(2*right_fit[0])
-    return left_curverad, right_curve_rad
-
 def measure_curvature_m(img, lines):
     ploty = np.linspace(0, img.shape[0]-1, img.shape[0])
     
@@ -299,7 +286,7 @@ def plot_to_road(img, lines):
 
     # Warp the blank back to original image space using inverse perspective matrix (Minv)
     newwarp_upside_down = cv2.warpPerspective(color_warp, Minv, (img.shape[1], img.shape[0]))
-    newwarp = cv2.flip(newwarp_upside_down, 0)
+    newwarp = newwarp_upside_down
     
     # Combine the result with the original image
     result = cv2.addWeighted(img, 1, newwarp, 0.3, 0)
@@ -325,10 +312,11 @@ def lines_string():
 
 def process_image(image):
     global lines
-    bin_img = get_binary_image(cv2.flip(image, 0), mtx, dist)
+    image_undistorted = cv2.undistort(image, mtx, dist, None, mtx)
+    bin_img = get_binary_image(image_undistorted)
     pt_bin_img = cv2.warpPerspective(bin_img, M, (bin_img.shape[1], bin_img.shape[0]), flags = cv2.INTER_LINEAR)
     lines = get_lane_lines(pt_bin_img, lines)
-    result = plot_to_road(image, lines)
+    result = plot_to_road(image_undistorted, lines)
     lines = measure_curvature_m(result, lines)
     final_image = add_text(result, lines)
     return final_image
